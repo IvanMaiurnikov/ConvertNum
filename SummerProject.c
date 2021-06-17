@@ -2,17 +2,17 @@
 #include <stdlib.h>
 #include <sds.h>
 
-#define MAX_LEN (12)
+#define MAX_LEN (13)
 
 char* SINGLE_DIGIT[] = {"", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"};
 
 char* TENTH_DIGIT[] = {"ten", "eleven", "twelth", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"};
 
-char* DOUBLE_DIGIT[] = { "twenty", "thirty", "fourty", "fifty", "sixty", "seventy", "eighty", "ninety"};
+char* DOUBLE_DIGIT[] = {"", "", "twenty", "thirty", "fourty", "fifty", "sixty", "seventy", "eighty", "ninety"};
 
-char* MULT[] = {"", "ten", "hundred", "thousand", "million", "billion"};
+char* MULT[] = {"", "thousand", "million", "billion"};
 
-char* SIGN[] = {"", "minus"};
+char* SIGN[] = {"", "Minus "};
 
 int trio_translate(sds raw, sds* processed) {
 	int i,
@@ -24,18 +24,18 @@ int trio_translate(sds raw, sds* processed) {
 		if (len > 2) {
 			adr = raw[0] - '0';
 			if (raw[0] != '0') {
-				sdscat(*processed, SINGLE_DIGIT[adr]);
-				sdscat(*processed, MULT[1]);
+				*processed = sdscat(*processed, SINGLE_DIGIT[adr]);
+				*processed = sdscat(*processed, " Hundred ");
 			}
 			adr = raw[1] - '0';
 				if (raw[1] == '1') {
 					adr = raw[2] - '0';
-					sdscat(*processed, TENTH_DIGIT[adr]);
+					*processed = sdscat(*processed, TENTH_DIGIT[adr]);
 				}
 				if (raw[1] != 1) {
-					sdscat(*processed, DOUBLE_DIGIT[adr]);
+					*processed = sdscat(*processed, DOUBLE_DIGIT[adr]);
 					adr = raw[2] - '0';
-					sdscat(*processed, SINGLE_DIGIT[adr]);
+					*processed = sdscat(*processed, SINGLE_DIGIT[adr]);
 				}
 				rc = 1;
 		}
@@ -44,17 +44,17 @@ int trio_translate(sds raw, sds* processed) {
 				adr = raw[0] - '0';
 				if (raw[0] == '1') {
 					adr = raw[1] - '0';
-					sdscat(*processed, TENTH_DIGIT[adr]);
+					*processed = sdscat(*processed, TENTH_DIGIT[adr]);
 				}
 				if (raw[0] != '1') {
-					sdscat(*processed, DOUBLE_DIGIT[adr]);
+					*processed = sdscat(*processed, DOUBLE_DIGIT[adr]);
 					adr = raw[1] - '0';
-					sdscat(*processed, SINGLE_DIGIT[adr]);
+					*processed = sdscat(*processed, SINGLE_DIGIT[adr]);
 				}
 			}
 			if (len == 1) {
 				adr = raw[0] - '0';
-				sdscat(*processed, SINGLE_DIGIT[adr]);
+				*processed = sdscat(*processed, SINGLE_DIGIT[adr]);
 			}
 			rc = 1;
 		}
@@ -63,40 +63,47 @@ int trio_translate(sds raw, sds* processed) {
 
 void conversion(sds in, sds* out) {
 	int i,
-		count,
-		subcount,
+		rem,
 		start = 0,
 		weight,
-		lose,
-		finish = 0;
-	sds* clone,
-		sign_tokens,
-		subtoken;
+		finish = 2;
+	sds clone;
 	sdstrim(in," \n");
 	if (in[0] == '-') { // check if the number is <0
 		sdstrim(in, "-");
-		sdscat(*out, SIGN[1]);
+		*out = sdscat(*out, SIGN[1]);
 	}
 
 		weight = (((strlen(in) / 3) + (strlen(in) % 3 ? 1 : 0))) - 1;
-		do {
-			sds clone = sdsnew(in, sdslen(in));
-			if (strlen(in) % 3 > 0) {
-				lose = (strlen(in)) % 3;
-				finish = (strlen(in) % 3) - 1;
-				sdsrange(in, start, finish);
-				trio_translate(in, &out);
-				start = finish + 1;
-				finish += finish + 3;
-				weight -= weight - lose;
+		rem = strlen(in) % 3;
+		finish = 2;
+		do{
+
+			if (rem) {
+				finish = rem - 1;
+				
 			}
-			else {
-				finish += 2;
+			clone = sdsnew(in, sdslen(in));
+			sdsrange(clone , start, finish);
+
+			trio_translate(clone, out);
+			*out = sdscat(*out, " ");
+			*out = sdscat(*out, MULT[weight]);
+			//обробка множини
+			*out = sdscat(*out, " ");
+			if (rem) {
+				start = rem;
+				finish = start + 3;
+				rem = 0;
 			}
-			
-			weight = weight - 3;
-		} while (weight); 
-	
+			else
+			{
+				start += 3;
+				finish += 3;
+			}
+			weight--;
+			sdsfree(clone);
+		} while (weight >= 0); 
 }
 
 	int input_req() {
@@ -130,9 +137,12 @@ int main()
            "into sequence of words."\
            "Input number:");
 	input = input_req(); // make an rc, if int fails send error and retry 
-	sprintf(buff, "%11d", input);
+	sprintf(buff, "%d\n", input);
 	sds str = sdsnew(buff, strlen(buff));
-	sds proc = sdsnew("", 20); // sending empty string
-	conversion(str, &proc);
+	sds proc = sdsnew(""); // sending empty string
+	//conversion(str, &proc);
+	printf("%s\n", proc);
+	sdsfree(str);
+	sdsfree(proc);
 }
 
