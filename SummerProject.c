@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sds.h>
+#include <Windows.h>
 
 #define MAX_LEN (13)
 
@@ -12,7 +13,37 @@ char* DOUBLE_DIGIT[] = {"", "", "twenty", "thirty", "fourty", "fifty", "sixty", 
 
 char* MULT[] = {"", "thousand", "million", "billion"};
 
-char* SIGN[] = {"", "Minus "};
+char* SIGN[] = {"", "minus "};
+
+void cls(HANDLE hConsole)
+{
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
+	SMALL_RECT scrollRect;
+	COORD scrollTarget;
+	CHAR_INFO fill;
+	// Get the number of character cells in the current buffer.
+	if (!GetConsoleScreenBufferInfo(hConsole, &csbi))
+	{
+		return;
+	}
+	// Scroll the rectangle of the entire buffer.
+	scrollRect.Left = 0;
+	scrollRect.Top = 0;
+	scrollRect.Right = csbi.dwSize.X;
+	scrollRect.Bottom = csbi.dwSize.Y;
+	// Scroll it upwards off the top of the buffer with a magnitude of the entire height.
+	scrollTarget.X = 0;
+	scrollTarget.Y = (SHORT)(0 - csbi.dwSize.Y);
+	// Fill with empty spaces with the buffer's default text attribute.
+	fill.Char.UnicodeChar = TEXT(' ');
+	fill.Attributes = csbi.wAttributes;
+	// Do the scroll
+	ScrollConsoleScreenBuffer(hConsole, &scrollRect, NULL, scrollTarget, &fill);
+	// Move the cursor to the top left corner too.
+	csbi.dwCursorPosition.X = 0;
+	csbi.dwCursorPosition.Y = 0;
+	SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+}
 
 int trio_translate(sds raw, sds* processed) {
 	int i,
@@ -25,14 +56,14 @@ int trio_translate(sds raw, sds* processed) {
 			adr = raw[0] - '0';
 			if (raw[0] != '0') {
 				*processed = sdscat(*processed, SINGLE_DIGIT[adr]);
-				*processed = sdscat(*processed, " Hundred ");
+				*processed = sdscat(*processed, " hundred ");
 			}
 			adr = raw[1] - '0';
 				if (raw[1] == '1') {
 					adr = raw[2] - '0';
 					*processed = sdscat(*processed, TENTH_DIGIT[adr]);
 				}
-				if (raw[1] != 1) {
+				if (raw[1] != '1') {
 					*processed = sdscat(*processed, DOUBLE_DIGIT[adr]);
 					adr = raw[2] - '0';
 					*processed = sdscat(*processed, SINGLE_DIGIT[adr]);
@@ -89,7 +120,7 @@ void conversion(sds in, sds* out) {
 			trio_translate(clone, out);
 			*out = sdscat(*out, " ");
 			*out = sdscat(*out, MULT[weight]);
-			//обробка множини
+			//('S)
 			*out = sdscat(*out, " ");
 			if (rem) {
 				start = rem;
@@ -106,7 +137,7 @@ void conversion(sds in, sds* out) {
 		} while (weight >= 0); 
 }
 
-	int input_req() {
+	/*int input_req() {
 		int number;
 		do {
 			scanf("%d", &number);
@@ -121,28 +152,49 @@ void conversion(sds in, sds* out) {
 								  // if correct -> send int to conversion
 		return number;						  // user can quit from this point too
 	}
-
+	*/
 int main()
 {
-	int input;
-	char buff[MAX_LEN] = { 0 };
-   /*TO DO
-   * -interchangable memory variable
-   * -convert int to char.
-   * -if number goes over 32 bits send error in main
-   * - UI has to be appealing 
-   * -clear UI after operation
-   */
-	printf("This program converts int number"\
-           "into sequence of words."\
-           "Input number:");
-	input = input_req(); // make an rc, if int fails send error and retry 
-	sprintf(buff, "%d\n", input);
-	sds str = sdsnew(buff, strlen(buff));
-	sds proc = sdsnew(""); // sending empty string
-	//conversion(str, &proc);
-	printf("%s\n", proc);
-	sdsfree(str);
-	sdsfree(proc);
+	HANDLE hStdout;
+	int input,
+		rc = 0;
+	char buff[MAX_LEN] = { 0 },
+		op;
+	/*TO DO
+	* -interchangable memory variable
+	* -convert int to char.
+	* -if number goes over 32 bits send error in main
+	* - UI has to be appealing
+	* -clear UI after operation
+	*/
+	hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
+	printf("This program translates decimal numbers into a string."\
+		"Input the number in range of 32 bits...\n");
+	do {
+		printf("Input q to exit or c to continue.\n");
+		scanf("%c", &op);
+		
+		if (op == 'c') {
+			printf("Awaiting input...\n");
+				rc = scanf_s("%d", &input);
+				if (rc == 1) {
+					cls(hStdout);
+					sprintf(buff, "%d", input);
+					sds str = sdsnew(buff, strlen(buff));
+					sds proc = sdsnew(""); // sending empty string
+					conversion(str, &proc);
+					printf("%d -> %s\n", input, proc);
+					sdsfree(str);
+					sdsfree(proc);
+					fflush(stdin);
+					rc = 0;
+				}
+				else {
+					printf("Incorrect try again");
+					cls(hStdout);
+					fflush(stdin);
+				}
+		}
+	} while (op != 'q');
 }
 
