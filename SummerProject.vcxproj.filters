@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="SummerProject.c">
+    <ClCompile Include="ConvertNum.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="lib\sds\src\alloc.c">
@@ -33,6 +33,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="lib\sds\inc\sdsalloc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ConvertNum.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
