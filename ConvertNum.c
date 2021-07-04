@@ -5,6 +5,7 @@
 
 #define MAX_LEN (13)
 
+
 char* SINGLE_DIGIT[] = {"", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"};
 
 char* TENTH_DIGIT[] = {"ten", "eleven", "twelth", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"};
@@ -47,6 +48,7 @@ void cls(HANDLE hConsole)
 
 int trio_translate(sds raw, sds* processed) {
 	int i,
+		check,
 		rc = 0,
 		len,
 		adr;
@@ -66,6 +68,7 @@ int trio_translate(sds raw, sds* processed) {
 				if (raw[1] != '1') {
 					*processed = sdscat(*processed, DOUBLE_DIGIT[adr]);
 					adr = raw[2] - '0';
+					*processed = sdscat(*processed, " ");
 					*processed = sdscat(*processed, SINGLE_DIGIT[adr]);
 				}
 				rc = 1;
@@ -89,11 +92,21 @@ int trio_translate(sds raw, sds* processed) {
 			}
 			rc = 1;
 		}
+		check = 0;
+		for (i = 0; i < len; i++) {
+			if (raw[i] == '0') {
+				check +=1;
+			}
+		}
+		if (check == len) {
+			rc = 2;
+		}
 		return rc;
 }
 
 void conversion(sds in, sds* out) {
 	int i,
+		rc,
 		rem,
 		start = 0,
 		weight,
@@ -117,9 +130,11 @@ void conversion(sds in, sds* out) {
 			clone = sdsnew(in, sdslen(in));
 			sdsrange(clone , start, finish);
 
-			trio_translate(clone, out);
+			rc = trio_translate(clone, out);
 			*out = sdscat(*out, " ");
-			*out = sdscat(*out, MULT[weight]);
+			if (rc != 2) {
+				*out = sdscat(*out, MULT[weight]);
+			}
 			//('S)
 			*out = sdscat(*out, " ");
 			if (rem) {
@@ -137,64 +152,41 @@ void conversion(sds in, sds* out) {
 		} while (weight >= 0); 
 }
 
-	/*int input_req() {
-		int number;
-		do {
-			scanf("%d", &number);
-			if (number < INT_MIN || number > INT_MAX) {
-				printf("Input exceeds 32 bit number. Please try again.");
-				continue;
-			}
-			else {
-				break;
-			}// make an rc, if int fails send error and retry
-		} while (1);              // if int< or >int -> error(type of error) try again
-								  // if correct -> send int to conversion
-		return number;						  // user can quit from this point too
-	}
-	*/
+	
 int main()
 {
 	HANDLE hStdout;
-	int input,
-		rc = 0;
-	char buff[MAX_LEN] = { 0 },
-		op;
-	/*TO DO
-	* -interchangable memory variable
-	* -convert int to char.
-	* -if number goes over 32 bits send error in main
-	* - UI has to be appealing
-	* -clear UI after operation
-	*/
+	long input,
+	   rc = 0;
+	char buff[MAX_LEN] = { 0 };
 	hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
 	printf("This program translates decimal numbers into a string."\
 		"Input the number in range of 32 bits...\n");
-	do {
-		printf("Input q to exit or c to continue.\n");
-		scanf("%c", &op);
-		
-		if (op == 'c') {
+		do {
 			printf("Awaiting input...\n");
-				rc = scanf_s("%d", &input);
-				if (rc == 1) {
-					cls(hStdout);
-					sprintf(buff, "%d", input);
-					sds str = sdsnew(buff, strlen(buff));
-					sds proc = sdsnew(""); // sending empty string
-					conversion(str, &proc);
-					printf("%d -> %s\n", input, proc);
-					sdsfree(str);
-					sdsfree(proc);
-					fflush(stdin);
-					rc = 0;
-				}
-				else {
-					printf("Incorrect try again");
-					cls(hStdout);
-					fflush(stdin);
-				}
-		}
-	} while (op != 'q');
+			rc = scanf_s("%d", &input);
+			if (input < -2147483646 || input > 2147483647) {
+				printf("Input exceeds 32 bit number.");
+				rc = 0;
+				break;
+			}
+			if (rc == 1) {
+
+				sprintf(buff, "%d", input);
+				sds str = sdsnew(buff, strlen(buff));
+				sds proc = sdsnew(""); // sending empty string
+				conversion(str, &proc);
+				cls(hStdout);
+				printf("%d -> %s\n", input, proc);
+				sdsfree(str);
+				sdsfree(proc);
+				fflush(stdin);
+			}
+			else {
+				break;
+			}
+		} while (1);
+		cls(stdout);
+		printf("Unrecognized input found. Exitting programm...");
 }
 
