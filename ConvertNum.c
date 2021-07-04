@@ -46,6 +46,26 @@ void cls(HANDLE hConsole)
 	SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
 }
 
+/*
+* @NAME int trio_translate(sds raw, sds* processed)
+* @DESCR Recieves a cut of sds string and assigns strings judging on  
+*        symbol address.
+* 
+* @ARGS sds raw - gathered from conversion, contains numbers in char format.
+*       sds * processed - on IN - empty string; on OUT - converted chars into string.
+*       len - represents the length of raw.
+*       check - counter for 0s in raw, everytime 0 appear -> +1, if len == check -> 
+*       -> rc = 2.
+*       rc - return code.
+*       adr - address gathered from converting raw into int, used for guiding 
+*       function which string should be attached.
+* 
+* @RET rc = 0 if something goes wrong
+*      rc = 1 the function has completed conversion, added strings to processed,
+*      weight is applied to add MULT.
+*      rc = 2 the function has completed conversion and found out there is no need,
+*      to add any tring or to apply the weight for MULT.
+*/
 int trio_translate(sds raw, sds* processed) {
 	int i,
 		check,
@@ -104,6 +124,21 @@ int trio_translate(sds raw, sds* processed) {
 		return rc;
 }
 
+/*
+* @NAME  void conversion(sds in, sds* out)
+* @DESCR decides how many parts to cut the sds in string to and sends them to trio_translate.
+*
+* @ARGS sds in - gathered from main str, contains numbers in char format.
+*       sds * out - acts as a buffer that holds the translated sds in.
+*       rem - holds address of end char.
+*       start - address beginning.
+*       finish - end of adress.
+*       rc - return code.
+*       weight - length of sds in which decreases after each iteration, when reaches 0
+*       function ends.
+*
+*/
+
 void conversion(sds in, sds* out) {
 	int i,
 		rc,
@@ -152,32 +187,46 @@ void conversion(sds in, sds* out) {
 		} while (weight >= 0); 
 }
 
-	
+/*
+* @NAME  int main()
+* @DESCR scanf &input gets the int number which then is checked for illegal
+*        characters and overflow (if one of these accure -> break the cycle).
+*        if check is succesful -> convert input to sds and proceed to 
+*        conversion.
+*
+* @ARGS input - long long type used for getting input and comparing the size.
+*       rc - return code.
+*       buff - buffer for input sprintf to string.
+*       hStdout - used for console clean up.
+*
+*/
+
 int main()
 {
 	HANDLE hStdout;
-	long input,
+	long long input,
 	   rc = 0;
 	char buff[MAX_LEN] = { 0 };
 	hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
-	printf("This program translates decimal numbers into a string."\
+	printf("This program translates decimal numbers into a string.\n"\
+		"To exit the program input illegal character or number that exceeds 32 bit range.\n"\
 		"Input the number in range of 32 bits...\n");
 		do {
 			printf("Awaiting input...\n");
-			rc = scanf_s("%d", &input);
-			if (input < -2147483646 || input > 2147483647) {
+			rc = scanf("%lld", &input);
+			if (input < LONG_MIN + 1 || input > LONG_MAX) {
 				printf("Input exceeds 32 bit number.");
 				rc = 0;
 				break;
 			}
 			if (rc == 1) {
 
-				sprintf(buff, "%d", input);
+				sprintf(buff, "%lld", input);
 				sds str = sdsnew(buff, strlen(buff));
 				sds proc = sdsnew(""); // sending empty string
 				conversion(str, &proc);
 				cls(hStdout);
-				printf("%d -> %s\n", input, proc);
+				printf("%lld -> %s\n", input, proc);
 				sdsfree(str);
 				sdsfree(proc);
 				fflush(stdin);
