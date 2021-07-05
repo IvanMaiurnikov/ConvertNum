@@ -3,12 +3,16 @@
 #include <Windows.h>
 #include <ConvertNum.h>
 
+#ifdef _UNIT_TEST
+#include "CUnit/Basic.h"
+#endif
+
 #define MAX_LEN (13)
 
 
 char* SINGLE_DIGIT[] = {"", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"};
 
-char* TENTH_DIGIT[] = {"ten", "eleven", "twelth", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"};
+char* TENTH_DIGIT[] = {"ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"};
 
 char* DOUBLE_DIGIT[] = {"", "", "twenty", "thirty", "fourty", "fifty", "sixty", "seventy", "eighty", "ninety"};
 
@@ -55,7 +59,7 @@ void cls(HANDLE hConsole)
 *       sds * processed - on IN - empty string; on OUT - converted chars into string.
 * @RET rc = 0 if something goes wrong
 *      rc = 1 the function has completed conversion, added strings to processed,
-*      weight is applied to add MULT.
+*             weight is applied to add MULT.
 */
 int trio_translate(sds raw, sds* processed) {
 	int i,
@@ -178,6 +182,7 @@ void conversion(sds in, sds* out) {
 		weight--;
 		sdsfree(clone);
 	} while (weight >= 0); 
+	sdstrim(*out, " ");
 }
 
 /*
@@ -187,6 +192,8 @@ void conversion(sds in, sds* out) {
 *        if check is succesful -> convert input to sds and proceed to 
 *        conversion.
 */
+
+#ifndef _UNIT_TEST
 
 int main()
 {
@@ -228,4 +235,143 @@ int main()
 		} while (1);
 		cls(stdout);
 }
+#else
+/* Pointer to the file used by the tests. */
+static FILE* temp_file = NULL;
+
+int init_suite1(void)
+{
+	if (NULL == (temp_file = fopen("temp.txt", "w+"))) {
+		return -1;
+	}
+	else {
+		return 0;
+	}
+}
+
+int clean_suite1(void)
+{
+	if (0 != fclose(temp_file)) {
+		return -1;
+	}
+	else {
+		temp_file = NULL;
+		return 0;
+	}
+}
+
+void test_trio_translate_zero(void) {
+	sds in = sdsnew("0");
+	sds out = sdsnew("");
+	if (NULL != temp_file) {
+		CU_ASSERT(2 == trio_translate(in, &out));
+	}
+	sdsfree(in);
+	sdsfree(out);
+}
+
+void test_trio_translate_extra(void)
+{
+	sds in = sdsnew("12345");
+	sds out = sdsnew("");
+	if (NULL != temp_file) {
+		CU_ASSERT(0 < trio_translate(in, &out));
+		CU_ASSERT(0==strcmp(out, "one hundred twenty three"));
+	}
+	sdsfree(in);
+	sdsfree(out);
+}
+
+void test_convert_negative(void) {
+	sds in = sdsnew("-12345");
+	sds out = sdsnew("");
+	if (NULL != temp_file) {
+		conversion(in, &out);
+		CU_ASSERT(0==strcmp(out, "minus twelve thousand three hundred fourty five"));
+	}
+	sdsfree(in);
+	sdsfree(out);
+}
+
+void test_convert_min(void) {
+	sds in = sdsnew("-2147483648");
+	sds out = sdsnew("");
+	if (NULL != temp_file) {
+		conversion(in, &out);
+		CU_ASSERT(0==strcmp(out, "minus two billion one hundred fourty seven million four hundred eighty three thousand six hundred fourty eight"));
+	}
+	sdsfree(in);
+	sdsfree(out);
+}
+
+void test_convert_max(void) {
+	sds in = sdsnew("2147483647");
+	sds out = sdsnew("");
+	if (NULL != temp_file) {
+		conversion(in, &out);
+		CU_ASSERT(0 == strcmp(out, "two billion one hundred fourty seven million four hundred eighty three thousand six hundred fourty seven"));
+	}
+	sdsfree(in);
+	sdsfree(out);
+}
+
+void test_convert_overmax(void) {
+	sds in = sdsnew("2147483647000");
+	sds out = sdsnew("");
+	if (NULL != temp_file) {
+		conversion(in, &out);
+		CU_ASSERT(0 == strcmp(out, "error"));
+	}
+	sdsfree(in);
+	sdsfree(out);
+}
+
+void test_convert_zero(void) {
+	sds in = sdsnew("0");
+	sds out = sdsnew("");
+	if (NULL != temp_file) {
+		conversion(in, &out);
+		CU_ASSERT(0 == strcmp(out, "zero"));
+	}
+	sdsfree(in);
+	sdsfree(out);
+}
+
+int main()
+{
+	CU_pSuite pSuite = NULL;
+
+	/* initialize the CUnit test registry */
+	if (CUE_SUCCESS != CU_initialize_registry())
+		return CU_get_error();
+	/* add a suite to the registry */
+	pSuite = CU_add_suite("Suite_1", init_suite1, clean_suite1);
+	if (NULL == pSuite) {
+		CU_cleanup_registry();
+		return CU_get_error();
+	}
+
+	if (   (NULL == CU_add_test(pSuite, "test of trio_translate() with extra symbols in input string \"1234\"", test_trio_translate_extra))
+		|| (NULL == CU_add_test(pSuite, "test of trio_translate() with zero input string", test_trio_translate_zero))
+		|| (NULL == CU_add_test(pSuite, "test of convert() with negative input", test_convert_negative))
+		|| (NULL == CU_add_test(pSuite, "test of convert() with minimal acceptable value ( -2147483648 )", test_convert_min))
+		|| (NULL == CU_add_test(pSuite, "test of convert() with maximum acceptable value ( 2147483647 )", test_convert_max))
+		|| (NULL == CU_add_test(pSuite, "test of convert() with zero input value ( 0 )", test_convert_zero))
+		|| (NULL == CU_add_test(pSuite, "test of convert() with value > max ( 21474836470  )", test_convert_overmax))
+		
+
+	   )
+	{
+		CU_cleanup_registry();
+		return CU_get_error();
+	}
+
+
+	/* Run all tests using the CUnit Basic interface */
+	CU_basic_set_mode(CU_BRM_VERBOSE);
+	CU_basic_run_tests();
+	CU_cleanup_registry();
+	return CU_get_error();
+}
+#endif
 
