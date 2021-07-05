@@ -187,12 +187,6 @@ void conversion(sds in, sds* out) {
 *        characters and overflow (if one of these accure -> break the cycle).
 *        if check is succesful -> convert input to sds and proceed to 
 *        conversion.
-*
-* @ARGS input - long long type used for getting input and comparing the size.
-*       rc - return code.
-*       buff - buffer for input sprintf to string.
-*       hStdout - used for console clean up.
-*
 */
 
 int main()
