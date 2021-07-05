@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <Windows.h>
 #include <ConvertNum.h>
-
+#include <windows.h>
 #ifdef _UNIT_TEST
 #include "CUnit/Basic.h"
 #endif
@@ -191,22 +191,33 @@ void conversion(sds in, sds* out) {
  * @ARGS  int *input - pointer to intever value to be entered;
  * @RET   int rc - 0 if error value entered, 1 if OK
  ******************************************************************** */
-int input_and_validate(int *input) {
-	int       rc = 0;
+int input_and_validate(int *input, char *in_str) {
+	int       rc = 0,
+		      i;
 	long long ll_input;
-	rc = scanf("%lld", &ll_input);
-	if (rc) {
+
+	if (strlen(in_str) > 12) {
+		rc = -3;
+		return rc;
+	}
+	for (i = 0; i < strlen(in_str); i++) {
+		if (in_str[i] != '-' && (in_str[i] < '0' || in_str[i] > '9')) {
+			rc = -1;
+			break;
+		}
+	}
+
+	if (i == strlen(in_str)) {
+		ll_input = atoll(in_str);
 		if ((ll_input < LONG_MIN) || (ll_input > LONG_MAX)) {
-			printf("Input exceeds 32 bit number. Exitting programm...");
-			rc = 0;
+			rc = -2;
 		}
 		else {
 			*input = (int)ll_input;
+			rc = 0;
 		}
 	}
-	else {
-		printf("Unrecognized input found. Exitting programm...");
-	}
+
 	return rc;
 }
 
@@ -232,19 +243,21 @@ int main()
 		"Input the number in range of 32 bits...\n");
 		do {
 			printf("Awaiting input...\n");
-			rc = input_and_validate(&input);
-			if (rc == 1) {
+			rc = scanf("%11s", buff);
+			rc = input_and_validate(&input, buff);
+			if (rc == 0) {
 				sprintf(buff, "%d", input);
 				sds str = sdsnewlen(buff, strlen(buff));
 				sds proc = sdsnew(""); // sending empty string
 				conversion(str, &proc);
 				cls(hStdout);
-				printf("%lld -> %s\n", input, proc);
+				printf("%d -> %s\n", input, proc);
 				sdsfree(str);
 				sdsfree(proc);
 				fflush(stdin);
 			}
 			else {
+				printf("Wrong value entered");
 				break;
 			}
 		} while (1);
@@ -330,10 +343,6 @@ void test_convert_max(void) {
 	sdsfree(out);
 }
 
-void test_input_and_validate_typo(void) {
-
-}
-
 void test_convert_overmax(void) {
 	sds in = sdsnew("2147483647000");
 	sds out = sdsnew("");
@@ -356,6 +365,74 @@ void test_convert_zero(void) {
 	sdsfree(out);
 }
 
+void test_input_and_validate_typo(void) {
+	char buf[8];
+	int input,
+		rc;
+	sprintf(buf, "23a14");
+	rc = input_and_validate(&input, buf);
+	if (NULL != temp_file) {
+		CU_ASSERT(-1 == rc);
+	}
+}
+
+void test_input_and_validate_min(void) {
+	char buf[32];
+	int input,
+		rc;
+	sprintf(buf, "-2147483648");
+	rc = input_and_validate(&input, buf);
+	if (NULL != temp_file) {
+		CU_ASSERT(0 == rc);
+	}
+}
+
+void test_input_and_validate_max(void) {
+	char buf[32];
+	int input,
+		rc;
+	sprintf(buf, "2147483647");
+	rc = input_and_validate(&input, buf);
+	if (NULL != temp_file) {
+		CU_ASSERT(0 == rc);
+	}
+}
+void test_input_and_validate_overmax(void) {
+	char buf[32];
+	int input,
+		rc;
+	sprintf(buf, "21474836470");
+	rc = input_and_validate(&input, buf);
+	if (NULL != temp_file) {
+		CU_ASSERT(-2 == rc);
+	}
+}
+
+void test_input_and_validate_overmin(void) {
+	char buf[32];
+	int input,
+		rc;
+	sprintf(buf, "-21474836480");
+	rc = input_and_validate(&input, buf);
+	if (NULL != temp_file) {
+		CU_ASSERT(-2 == rc);
+	}
+}
+
+void test_input_and_validate_longstr(void) {
+	char buf[32];
+	int input,
+		rc;
+	sprintf(buf, "123412341234123455");
+
+	rc = input_and_validate(&input, buf);
+	if (NULL != temp_file) {
+		printf("( %s ) ", buf);
+		CU_ASSERT(-3 == rc);
+	}
+}
+
+
 int main()
 {
 	CU_pSuite pSuite = NULL;
@@ -376,6 +453,13 @@ int main()
 		|| (NULL == CU_add_test(pSuite, "test of convert() with minimal acceptable value ( -2147483648 )", test_convert_min))
 		|| (NULL == CU_add_test(pSuite, "test of convert() with maximum acceptable value ( 2147483647 )", test_convert_max))
 		|| (NULL == CU_add_test(pSuite, "test of convert() with zero input value ( 0 )", test_convert_zero))
+		|| (NULL == CU_add_test(pSuite, "test of input_and_validate() with typo in the input ( 23a14 )", test_input_and_validate_typo))
+		|| (NULL == CU_add_test(pSuite, "test of input_and_validate() with minimal acceptable value ( -2147483648 )", test_input_and_validate_min))
+		|| (NULL == CU_add_test(pSuite, "test of input_and_validate() with maximum acceptable value ( 2147483647 )", test_input_and_validate_max))
+		|| (NULL == CU_add_test(pSuite, "test of input_and_validate() with value > max ( 21474836470  )", test_input_and_validate_overmax))
+		|| (NULL == CU_add_test(pSuite, "test of input_and_validate() with value < min ( -21474836480  )", test_input_and_validate_overmin))
+		|| (NULL == CU_add_test(pSuite, "test of input_and_validate() with long string", test_input_and_validate_longstr))
+		
 		//|| (NULL == CU_add_test(pSuite, "test of convert() with value > max ( 21474836470  )", test_convert_overmax))
 		
 
