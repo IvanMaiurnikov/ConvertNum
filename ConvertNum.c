@@ -53,27 +53,21 @@ void cls(HANDLE hConsole)
 * 
 * @ARGS sds raw - gathered from conversion, contains numbers in char format.
 *       sds * processed - on IN - empty string; on OUT - converted chars into string.
-*       len - represents the length of raw.
-*       check - counter for 0s in raw, everytime 0 appear -> +1, if len == check -> 
-*       -> rc = 2.
-*       rc - return code.
-*       adr - address gathered from converting raw into int, used for guiding 
-*       function which string should be attached.
-* 
 * @RET rc = 0 if something goes wrong
 *      rc = 1 the function has completed conversion, added strings to processed,
 *      weight is applied to add MULT.
-*      rc = 2 the function has completed conversion and found out there is no need,
-*      to add any tring or to apply the weight for MULT.
 */
 int trio_translate(sds raw, sds* processed) {
 	int i,
-		check,
-		rc = 0,
-		len,
-		adr;
+		check,   // check - counter for 0s in raw, everytime 0 appear -> +1, if len == check -> 
+                //-> rc = 2.
+		rc = 0, // rc = 2 the function has completed conversion and found out there is no need,
+	           //to add any tring or to apply the weight for MULT.
+		len,    // len - represents the length of raw.
+		adr;  //  adr - address gathered from converting raw into int, used for guiding 
+	          //function which string should be attached.
 	len = sdslen(raw);
-	// test the values, change between sizes!!!!
+
 		if (len > 2) {
 			adr = raw[0] - '0';
 			if (raw[0] != '0') {
@@ -102,23 +96,27 @@ int trio_translate(sds raw, sds* processed) {
 				}
 				if (raw[0] != '1') {
 					*processed = sdscat(*processed, DOUBLE_DIGIT[adr]);
+					*processed = sdscat(*processed, " ");
 					adr = raw[1] - '0';
 					*processed = sdscat(*processed, SINGLE_DIGIT[adr]);
 				}
 			}
 			if (len == 1) {
 				adr = raw[0] - '0';
-				*processed = sdscat(*processed, SINGLE_DIGIT[adr]);
+				if (raw[0] == '0') {
+					*processed = sdscat(*processed, "zero");
+				}
+				else {
+					*processed = sdscat(*processed, SINGLE_DIGIT[adr]);
+				}
 			}
 			rc = 1;
 		}
 		check = 0;
 		for (i = 0; i < len; i++) {
-			if (raw[i] == '0') {
-				check +=1;
-			}
+			check += raw[i] - '0';
 		}
-		if (check == len) {
+		if (check == 0) {
 			rc = 2;
 		}
 		return rc;
@@ -130,61 +128,56 @@ int trio_translate(sds raw, sds* processed) {
 *
 * @ARGS sds in - gathered from main str, contains numbers in char format.
 *       sds * out - acts as a buffer that holds the translated sds in.
-*       rem - holds address of end char.
-*       start - address beginning.
-*       finish - end of adress.
-*       rc - return code.
-*       weight - length of sds in which decreases after each iteration, when reaches 0
-*       function ends.
+* @RET  void
 *
 */
 
 void conversion(sds in, sds* out) {
-	int i,
-		rc,
-		rem,
-		start = 0,
-		weight,
-		finish = 2;
+	int i,         
+		rc,          // return code
+		rem,         // holds address of end char.
+		start = 0,   // address beginning.
+		weight,      // length of sds in which decreases after each iteration, when reaches 0 - function ends.
+		finish = 2;  // end of adress.
 	sds clone;
+
 	sdstrim(in," \n");
 	if (in[0] == '-') { // check if the number is <0
 		sdstrim(in, "-");
 		*out = sdscat(*out, SIGN[1]);
 	}
 
-		weight = (((strlen(in) / 3) + (strlen(in) % 3 ? 1 : 0))) - 1;
-		rem = strlen(in) % 3;
-		finish = 2;
-		do{
+	weight = (((strlen(in) / 3) + (strlen(in) % 3 ? 1 : 0))) - 1;
+	rem = strlen(in) % 3;
+	do{
 
-			if (rem) {
-				finish = rem - 1;
-				
-			}
-			clone = sdsnew(in, sdslen(in));
-			sdsrange(clone , start, finish);
+		if (rem) {
+			finish = rem - 1;
+		}
 
-			rc = trio_translate(clone, out);
+		clone = sdsnewlen(in, sdslen(in));
+		sdsrange(clone , start, finish);
+		rc = trio_translate(clone, out);
+		//sdsfree(clone);
+		if (rc != 2) {
 			*out = sdscat(*out, " ");
-			if (rc != 2) {
-				*out = sdscat(*out, MULT[weight]);
-			}
-			//('S)
-			*out = sdscat(*out, " ");
-			if (rem) {
-				start = rem;
-				finish = start + 3;
-				rem = 0;
-			}
-			else
-			{
-				start += 3;
-				finish += 3;
-			}
-			weight--;
-			sdsfree(clone);
-		} while (weight >= 0); 
+			*out = sdscat(*out, MULT[weight]);
+		}
+		//('S)
+		*out = sdscat(*out, " ");
+		if (rem) {
+			start = rem;
+			finish = start + 2;
+			rem = 0;
+		}
+		else
+		{
+			start += 3;
+			finish += 3;
+		}
+		weight--;
+		sdsfree(clone);
+	} while (weight >= 0); 
 }
 
 /*
@@ -193,12 +186,6 @@ void conversion(sds in, sds* out) {
 *        characters and overflow (if one of these accure -> break the cycle).
 *        if check is succesful -> convert input to sds and proceed to 
 *        conversion.
-*
-* @ARGS input - long long type used for getting input and comparing the size.
-*       rc - return code.
-*       buff - buffer for input sprintf to string.
-*       hStdout - used for console clean up.
-*
 */
 
 int main()
@@ -214,15 +201,19 @@ int main()
 		do {
 			printf("Awaiting input...\n");
 			rc = scanf("%lld", &input);
-			if (input < LONG_MIN + 1 || input > LONG_MAX) {
-				printf("Input exceeds 32 bit number.");
+			if ( rc == 0) {
+				printf("Unrecognized input found. Exitting programm...");
+				break;
+			}
+			if (input < LONG_MIN || input > LONG_MAX) {
+				printf("Input exceeds 32 bit number. Exitting programm...");
 				rc = 0;
 				break;
 			}
 			if (rc == 1) {
 
 				sprintf(buff, "%lld", input);
-				sds str = sdsnew(buff, strlen(buff));
+				sds str = sdsnewlen(buff, strlen(buff));
 				sds proc = sdsnew(""); // sending empty string
 				conversion(str, &proc);
 				cls(hStdout);
@@ -236,6 +227,5 @@ int main()
 			}
 		} while (1);
 		cls(stdout);
-		printf("Unrecognized input found. Exitting programm...");
 }
 
