@@ -102,6 +102,7 @@ int trio_translate(sds raw, sds* processed) {
 				}
 				if (raw[0] != '1') {
 					*processed = sdscat(*processed, DOUBLE_DIGIT[adr]);
+					*processed = sdscat(*processed, " ");
 					adr = raw[1] - '0';
 					*processed = sdscat(*processed, SINGLE_DIGIT[adr]);
 				}
@@ -114,11 +115,9 @@ int trio_translate(sds raw, sds* processed) {
 		}
 		check = 0;
 		for (i = 0; i < len; i++) {
-			if (raw[i] == '0') {
-				check +=1;
-			}
+			check += raw[i] - '0';
 		}
-		if (check == len) {
+		if (check == 0) {
 			rc = 2;
 		}
 		return rc;
@@ -130,61 +129,56 @@ int trio_translate(sds raw, sds* processed) {
 *
 * @ARGS sds in - gathered from main str, contains numbers in char format.
 *       sds * out - acts as a buffer that holds the translated sds in.
-*       rem - holds address of end char.
-*       start - address beginning.
-*       finish - end of adress.
-*       rc - return code.
-*       weight - length of sds in which decreases after each iteration, when reaches 0
-*       function ends.
+* @RET  void
 *
 */
 
 void conversion(sds in, sds* out) {
-	int i,
-		rc,
-		rem,
-		start = 0,
-		weight,
-		finish = 2;
+	int i,         
+		rc,          // return code
+		rem,         // holds address of end char.
+		start = 0,   // address beginning.
+		weight,      // length of sds in which decreases after each iteration, when reaches 0 - function ends.
+		finish = 2;  // end of adress.
 	sds clone;
+
 	sdstrim(in," \n");
 	if (in[0] == '-') { // check if the number is <0
 		sdstrim(in, "-");
 		*out = sdscat(*out, SIGN[1]);
 	}
 
-		weight = (((strlen(in) / 3) + (strlen(in) % 3 ? 1 : 0))) - 1;
-		rem = strlen(in) % 3;
-		finish = 2;
-		do{
+	weight = (((strlen(in) / 3) + (strlen(in) % 3 ? 1 : 0))) - 1;
+	rem = strlen(in) % 3;
+	do{
 
-			if (rem) {
-				finish = rem - 1;
-				
-			}
-			clone = sdsnew(in, sdslen(in));
-			sdsrange(clone , start, finish);
+		if (rem) {
+			finish = rem - 1;
+		}
 
-			rc = trio_translate(clone, out);
+		clone = sdsnew(in, sdslen(in));
+		sdsrange(clone , start, finish);
+		rc = trio_translate(clone, out);
+		//sdsfree(clone);
+		if (rc != 2) {
 			*out = sdscat(*out, " ");
-			if (rc != 2) {
-				*out = sdscat(*out, MULT[weight]);
-			}
-			//('S)
-			*out = sdscat(*out, " ");
-			if (rem) {
-				start = rem;
-				finish = start + 3;
-				rem = 0;
-			}
-			else
-			{
-				start += 3;
-				finish += 3;
-			}
-			weight--;
-			sdsfree(clone);
-		} while (weight >= 0); 
+			*out = sdscat(*out, MULT[weight]);
+		}
+		//('S)
+		*out = sdscat(*out, " ");
+		if (rem) {
+			start = rem;
+			finish = start + 2;
+			rem = 0;
+		}
+		else
+		{
+			start += 3;
+			finish += 3;
+		}
+		weight--;
+		sdsfree(clone);
+	} while (weight >= 0); 
 }
 
 /*
@@ -214,7 +208,7 @@ int main()
 		do {
 			printf("Awaiting input...\n");
 			rc = scanf("%lld", &input);
-			if (input < LONG_MIN + 1 || input > LONG_MAX) {
+			if (input < LONG_MIN || input > LONG_MAX) {
 				printf("Input exceeds 32 bit number.");
 				rc = 0;
 				break;
